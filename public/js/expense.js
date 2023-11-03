@@ -33,22 +33,24 @@ addExpenseBtn.onclick = async function (event){
             description,
             category,
         }
+        let response;
         try {   
-        const response = await axios.post("http://localhost:3000/expense/expenses",obj,{headers: {"Authorization" : token}});
-        console.log(response);    
+        response = await axios.post("http://localhost:3000/expense/expenses",obj,{headers: {"Authorization" : token}});
+        console.log(response.data.expense);    
         }
 
         catch (error) {
             console.log(error);
         }
-        printTheListForAddExpense(obj);
+        printTheListForAddExpense(obj, response.data.expense);
 }
 
 //populate list when an expense is added
-function printTheListForAddExpense(obj){
+function printTheListForAddExpense(obj, res){
+   console.log(res._id)
    var list = document.createElement('li');
    list.className="list-group-item";
-   list.id=`${obj.id}`;
+   list.id=`${res._id}`;
    
    //Delete Button
    var deleteBtn = document.createElement('button');
@@ -60,9 +62,9 @@ function printTheListForAddExpense(obj){
             {
                
                try{
-               const response = await axios.delete(`http://localhost:3000/expense/${obj.id}`, {headers: {"Authorization" : token}});
+               const response = await axios.delete(`http://localhost:3000/expense/${res._id}`, {headers: {"Authorization" : token}});
                console.log(response);
-               var deleteli = document.getElementById(`${obj.id}`);
+               var deleteli = document.getElementById(`${res._id}`);
                ulTag.removeChild(deleteli);
                }
                catch(error) {
@@ -105,7 +107,7 @@ function showExpenseItemsOnScreen(obj)
          {
             var list = document.createElement('li');
             list.className="list-group-item";
-            list.id=`${obj[i].id}`;
+            list.id=`${obj[i]._id}`;
             
             //Delete Button
             var deleteBtn = document.createElement('button');
@@ -117,9 +119,9 @@ function showExpenseItemsOnScreen(obj)
                      {
                         
                         try{
-                        const response = await axios.delete(`http://localhost:3000/expense/${obj[i].id}`, {headers: {"Authorization" : token}});
+                        const response = await axios.delete(`http://localhost:3000/expense/${obj[i]._id}`, {headers: {"Authorization" : token}});
                         console.log(response);
-                        var deleteli = document.getElementById(`${obj[i].id}`);
+                        var deleteli = document.getElementById(`${obj[i]._id}`);
                         ulTag.removeChild(deleteli);
                         }
                         catch(error) {
@@ -179,6 +181,7 @@ premiumBtn.onclick = async function (event)
 function disableThePremiumBtn() {
    var buyPremiumBtn = document.getElementById('rzp-btn');
    buyPremiumBtn.className="btn-right-display";
+   disablePremiumBtnOnwindowLoad(token);
 }
 
 //when users account is premium buy btn's display in none
@@ -255,7 +258,8 @@ try{
    fileHistoryTag.innerHTML =''
    console.log(response);
    fileHistoryTag.innerHTML += '<h3>List of Downloaded Files : </h3>'
-   if(response.data.fileData.length === 0)
+   console.log(response.data.fileData);
+   if(response.data.fileData.length == 0)
    {
       fileHistoryTag.innerHTML +='<p>No files downloaded</p>'
    }

@@ -1,25 +1,23 @@
-const path = require('path');
+
 const nodemailer = require("nodemailer");
 const {v4: uuid} = require('uuid');
-const sequelize = require('../util/database');
 const bcrypt = require('bcryptjs');
 const FP = require('../models/forgetPassword');
 const User = require('../models/Users');
 
 const forgotPwdEmail = async (req,res,next) => {
 
-    const t = await sequelize.transaction();
     const email = req.body.femail;
     const uniqueId =  uuid();
-         User.findOne({where: {email : email}}).then((user) => {
+         User.findOne({email : email}).then((user) => {
             
       
-        FP.create({
+        const fp = new FP({
             uuid:uniqueId,
             isActive: true,
-            userId: user.id,
-            transaction: t
-        },)
+            userId: user._id,
+        })
+        fp.save();
          })
 
 
@@ -51,10 +49,10 @@ const resetPassword = async (req,res,next) => {
 
         try {
         const forgetPwdId = req.params.uniqueId;
-        FP.findOne({where : {uuid: forgetPwdId}}).then((request) =>{
+        FP.findOne({uuid: forgetPwdId}).then((request) =>{
             if(request.isActive === true)
             {
-                FP.update({isActive: false}, {where: {uuid: forgetPwdId}})
+                FP.updateOne({uuid: forgetPwdId},{ $set: {isActive: false}})
                 .then((result)=>{ 
                 res.send(`<html>
                                <script>
@@ -104,15 +102,14 @@ const resetPassword = async (req,res,next) => {
     }
 
 const updateNewPassword = async(req,res,next) => {
-       
-    const t = await sequelize.transaction();
+
             try {
                 const newpassword = req.query.fpassword;
                 const  uniqueId = req.params.uniqueId;
          
-               await FP.findOne({ where : { uuid: uniqueId }}).then(resetpassword => {
+               await FP.findOne({uuid: uniqueId }).then(resetpassword => {
                
-                    User.findOne({where: { id : resetpassword.userId}}).then(async (user) => {
+                    User.findOne({ _id : resetpassword.userId}).then(async (user) => {
                         if(user){
                             const saltRounds = 10;
                         bcrypt.hash(newpassword, saltRounds, (err, hash) => {
@@ -120,7 +117,7 @@ const updateNewPassword = async(req,res,next) => {
                                 console.log(err);
                                 throw new Error(err);
                             }
-                            user.update({ password: hash }).then(() => {
+                            user.updateOne({ password: hash }).then(() => {
                                 res.status(201).json({
                                     success: true,
                                     message: 'Successfuly update the new password'})
@@ -130,11 +127,10 @@ const updateNewPassword = async(req,res,next) => {
                         })
                     })       
             }
-            catch(err)
-            {
-                await t.rollback();
+            catch(err){
                 console.log(err);
             }
+            
     }
 module.exports = {
     forgotPwdEmail,

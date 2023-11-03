@@ -30,8 +30,6 @@ const postUserSignin = async (req, res, next) =>
                     name : name,
                     email : email,
                     password : hash,
-                    transaction: t
-
                 })
                     user.save();
                     console.log('USER CREATED');
@@ -48,10 +46,10 @@ const postUserSignin = async (req, res, next) =>
             }
 }
 
-//  function generateAccessToken(id){
-//     console.log( process.env.SECRET_TOKEN)
-//     return jwt.sign({id : id}, process.env.SECRET_TOKEN);
-//  }
+ function generateAccessToken(id){
+    console.log( process.env.SECRET_TOKEN)
+    return jwt.sign({id : id}, process.env.SECRET_TOKEN);
+ }
 
 const postUserLogin = async (req,res,next) => {
     const email = req.body.femail;
@@ -105,15 +103,15 @@ const postUserLogin = async (req,res,next) => {
         console.log(err)};
 }
 
-// const getUserByToken = async (req,res,next) => {
-//     try {
-//         const id = req.user.id;
-//         const user = await User.findOne({where : {id : id}})
-//         console.log("GET CALL");
-//       return res.send(user);
-//     }
-//     catch(err) { console.log(err)}
-// };
+const getUserByToken = async (req,res,next) => {
+    try {
+        const id = req.user._id;
+        const user = await User.findOne({_id : id})
+        console.log("GET CALL");
+      return res.send(user);
+    }
+    catch(err) { console.log(err)}
+};
 
 module.exports = {
     postUserSignin,
