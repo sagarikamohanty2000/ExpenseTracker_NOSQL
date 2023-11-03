@@ -8,36 +8,33 @@ const s3Services = require('../services/s3service');
 
 const postAddExpense = async (req,res,next)=>{
     
-    const t = await sequelize.transaction();
-    
     const amount = req.body.amt;
     const description = req.body.description;
     const category = req.body.category;
-    const userId = req.user.id;
+    const userId = req.user._id;
    try{
-        await Expense.create({
+        const exp = await Expense({
         amount: amount,
         description: description,
         category: category,
         userId: userId,
-        transaction: t
     })
+    const result = await exp.save();
+    req.user.addExpense(result);
             const expense = Number(req.user.totalExpense) + Number(amount);
-            User.update({
-                totalExpense: expense},
-                {where: {id : userId}, 
-                transaction: t
-            }).then(async()=>{
-                await t.commit();
+            User.updateOne({_id : userId},
+                {totalExpense: expense}
+                 )
+                 .then(async()=>{
                 console.log("Expense updated");  
             })
             .catch(async (err) => {
-                await t.rollback();
                 console.log(err);
             })
             res.status(200).json({
             success: true,
-            message:"Successfully added expense "
+            message:"Successfully added expense ",
+            expense:result
             })
    
    }
@@ -51,11 +48,11 @@ const getAllExpense = async (req,res,next) => {
     try {
         const page = +req.query.page || 1;
         const LIST_PER_PAGE =showItem;
-        const expenses = await Expense.findAll({where : {userId : req.user.id},
-            offset: (page-1) * LIST_PER_PAGE,
-            limit: LIST_PER_PAGE
-         })
-        let totalItems = await Expense.count({where : {userId : req.user.id}});
+        const expenses = await Expense.find({userId : req.user._id})
+            .skip((page-1) * LIST_PER_PAGE)
+            .limit( LIST_PER_PAGE)
+
+        let totalItems = await Expense.countDocuments({userId : req.user._id});
         console.log("GET CALL");
         return res.status(200).json({
             expenseData: expenses,
@@ -71,11 +68,9 @@ const getAllExpense = async (req,res,next) => {
 
 const deleteExpenseById = async (req,res,next) =>{
     
-    const t = await sequelize.transaction();
     const exId = req.params.expenseId;
     if(exId == undefined || exId.length === 0)
     {      
-            await t.rollback();
             res.status(400).json({
             error : {
             success: false,
@@ -84,31 +79,20 @@ const deleteExpenseById = async (req,res,next) =>{
         })
     }
     try{
-
-        await Expense.destroy({where : {id:exId, userId: req.user.id}, transaction: t})
-        console.log("DESTROYED EXPENSE");
-
-            Expense.findAll({where: {id: exId}}).then((deleteExpenseInfo) => {
         
-                const verifiedExpense = Number(req.user.totalExpense) - Number(deleteExpenseInfo[0].amount);
-   
-            User.update({
-                totalExpense : verifiedExpense},
-                 {where: {id : req.user.id}, 
-                 transaction: t
-                }).then(async()=>{
-                    await t.commit();
+        const deleteExpense = await Expense.findOne({_id:exId}) 
+        await Expense.deleteOne({_id:exId})
+            const verifiedExpense = Number(req.user.totalExpense) - Number(deleteExpense.amount);
+             req.user.deleteExpense(exId);
+            User.updateOne({id : req.user._id},
+                {totalExpense : verifiedExpense})
+                .then(async()=>{
                     console.log("totalExpense updated after Deletion");  
                 })
                 .catch(async (err) => {
-                    await t.rollback();
                     console.log(err);
                 })
-        })
-        .catch(async (err) => {
-            await t.rollback();
-            console.log(err);
-        })
+          
         res.status(200).json({
         success: true,
         message:"Successfully deleted "
@@ -119,7 +103,7 @@ const deleteExpenseById = async (req,res,next) =>{
 
 const downloadFile = async(req, res, next) => {
 
-    const userId = req.user.id;
+    const userId = req.user._id;
     const isPremium = Boolean(req.user.isPremium);
     try{
             if(isPremium === false)
@@ -132,15 +116,25 @@ const downloadFile = async(req, res, next) => {
                 })
             }
             else {
-                const expenses = await req.user.getExpenses();
-                console.log(expenses);
-                const stringifiedExpenseData = JSON.stringify(expenses);
-                const filename = `Expense${userId}/${new Date()}.text`;
-                const fileUrl = await s3Services.uploadToS3(stringifiedExpenseData,filename);
-                await File.create({
-                    fileUrl: fileUrl,
-                    userId: userId
+                const user = User.find({_id:userId})
+                user.populate('expenses.items.expenseId')
+                .exec()
+                .then(user => {
+                    const expenses = user.expenses.items;
+                    console.log(expenses);
+                    const stringifiedExpenseData = JSON.stringify(expenses);
+                    const filename = `Expense${userId}/${new Date()}.text`;
+    
                 })
+                // console.log(expenses);
+                // const stringifiedExpenseData = JSON.stringify(expenses);
+                // const filename = `Expense${userId}/${new Date()}.text`;
+              //  const fileUrl = await s3Services.uploadToS3(stringifiedExpenseData,filename);
+             
+             req.user.addFile('file');
+            //   await File.create({
+            //         fileUrl: fileUrl
+            //     })
                 res.status(200).json({
                     fileUrl, 
                     success : true,
@@ -158,13 +152,20 @@ const fileHistory = async(req, res,next) => {
     const isPremium = Boolean(req.user.isPremium);
     try {
         if(isPremium === true){
-        const fileData = await File.findAll({where : {userId : req.user.id}})
+        User.find({_id : req.user._id})
+        .populate('fileData.items')
+        .exec()
+        .then((file) => {
             console.log("GET CALL");
+            const fileData = file[0].fileData.items;
+            //console.log(file);
             return res.status(200).json({
                 fileData,
                 success: true,
                 message: "File data retrived"
             });
+        })
+           
         }
 
         else

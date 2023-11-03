@@ -8,6 +8,8 @@ require('dotenv').config();
 const bodyParser = require('body-parser');
 const sequelize = require('./util/database');
 
+const mongoose = require('mongoose');
+
 const User = require('./models/Users');
 const Expense = require('./models/expense');
 const Order = require('./models/order');
